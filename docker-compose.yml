@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=auth_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+
+  web:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    # Запуск миграций и сервера.
+    # Здесь мы также запускаем скрипт инициализации данных для удобства проверки.
+    # Добавлено makemigrations для автоматического создания файлов миграций.
+    command: sh -c "python manage.py makemigrations users && python manage.py migrate && python manage.py collectstatic --noinput && python manage.py init_data && gunicorn core.wsgi:application --bind 0.0.0.0:8000"
+    volumes:
+      - ./app:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_DB=auth_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - DB_HOST=db
+      - DB_PORT=5432
+      - SECRET_KEY=django-insecure-dev-key
+      - DEBUG=True
+      - CORS_ALLOW_ALL_ORIGINS=True
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

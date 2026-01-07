@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RBAC Демонстрация</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        .console-output {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .status-badge {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+<div id="app" class="container py-5">
+    <div class="row mb-5">
+        <div class="col-12 text-center">
+            <h1>RBAC Auth System Demo</h1>
+            <p class="lead">Django Rest Framework + Vue.js</p>
+        </div>
+    </div>
+
+    <!-- Авторизация / Регистрация -->
+    <div class="row justify-content-center mb-5" v-if="!isAuthenticated">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs">
+                        <li class="nav-item">
+                            <a class="nav-link" :class="{active: activeTab === 'login'}" @click="activeTab = 'login'" href="#">Вход</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" :class="{active: activeTab === 'register'}" @click="activeTab = 'register'" href="#">Регистрация</a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <!-- Форма Входа -->
+                    <form v-if="activeTab === 'login'" @submit.prevent="login">
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" v-model="loginForm.email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Пароль</label>
+                            <input type="password" class="form-control" v-model="loginForm.password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Войти</button>
+                    </form>
+
+                    <!-- Форма Регистрации -->
+                    <form v-if="activeTab === 'register'" @submit.prevent="register">
+                        <div class="row">
+                            <div class="col-4 mb-3">
+                                <label class="form-label">Имя</label>
+                                <input type="text" class="form-control" v-model="registerForm.first_name" required>
+                            </div>
+                            <div class="col-4 mb-3">
+                                <label class="form-label">Фамилия</label>
+                                <input type="text" class="form-control" v-model="registerForm.last_name" required>
+                            </div>
+                            <div class="col-4 mb-3">
+                                <label class="form-label">Отчество</label>
+                                <input type="text" class="form-control" v-model="registerForm.middle_name">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" v-model="registerForm.email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Пароль</label>
+                            <input type="password" class="form-control" v-model="registerForm.password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Повторите пароль</label>
+                            <input type="password" class="form-control" v-model="registerForm.password_confirm" required>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">Зарегистрироваться</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Панель управления -->
+    <div class="row mb-4" v-if="isAuthenticated">
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Профиль пользователя</h5>
+                    <p><strong>Email:</strong> {{ userProfile.email }}</p>
+                    <p><strong>ФИО:</strong> {{ userProfile.last_name }} {{ userProfile.first_name }} {{ userProfile.middle_name }}</p>
+                    <p><strong>Роли:</strong> 
+                        <span v-for="role in userProfile.roles" :key="role" class="badge bg-info me-1">{{ role }}</span>
+                        <span v-if="!userProfile.roles || userProfile.roles.length === 0" class="text-muted">Нет ролей</span>
+                    </p>
+                    <div class="mb-3">
+                         <button class="btn btn-primary btn-sm w-100 mb-2" @click="toggleEditProfile">Редактировать профиль</button>
+                    </div>
+
+                    <!-- Форма редактирования -->
+                    <div v-if="isEditingProfile" class="mb-3 border p-2 rounded bg-light">
+                        <label class="form-label small">Имя</label>
+                        <input type="text" class="form-control form-control-sm mb-2" v-model="editProfileForm.first_name">
+                         <label class="form-label small">Фамилия</label>
+                        <input type="text" class="form-control form-control-sm mb-2" v-model="editProfileForm.last_name">
+                         <label class="form-label small">Отчество</label>
+                        <input type="text" class="form-control form-control-sm mb-2" v-model="editProfileForm.middle_name">
+                        <div class="d-flex gap-2">
+                             <button class="btn btn-success btn-sm w-50" @click="saveProfile">Сохранить</button>
+                             <button class="btn btn-outline-secondary btn-sm w-50" @click="isEditingProfile = false">Отмена</button>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-danger btn-sm" @click="deleteAccount">Удалить аккаунт (Soft Delete)</button>
+                        <button class="btn btn-secondary btn-sm" @click="logout">Выйти</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Тестирование прав доступа (RBAC)</h5>
+                    <p class="text-muted small">Нажимайте кнопки для проверки доступа к защищенным ресурсам.</p>
+                    
+                    <div class="d-flex gap-2 mb-3">
+                        <button class="btn btn-outline-primary" @click="getOrders">Получить Orders (GET)</button>
+                        <button class="btn btn-outline-primary" @click="createOrder">Создать Order (POST)</button>
+                        <button class="btn btn-outline-success" @click="getReports">Получить Reports (GET)</button>
+                    </div>
+
+                    <div class="console-output">
+                        <div v-if="logs.length === 0" class="text-muted">Ожидание действий...</div>
+                        <div v-for="(log, index) in logs" :key="index" class="mb-2">
+                            <span class="text-secondary">[{{ log.time }}]</span>
+                            <span :class="getStatusClass(log.status)">{{ log.method }} {{ log.url }} -> {{ log.status }}</span>
+                            <pre class="mt-1" style="font-size: 0.85em;">{{ JSON.stringify(log.data, null, 2) }}</pre>
+                            <hr class="border-secondary mb-0">
+                        </div>
+                    </div>
+                    <button class="btn btn-link btn-sm text-decoration-none mt-2 ps-0" @click="logs = []">Очистить консоль</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const { createApp, ref, onMounted, computed } = Vue;
+
+    const API_URL = 'http://localhost:8000/api/v1';
+
+    createApp({
+        setup() {
+            const isAuthenticated = ref(false);
+            const activeTab = ref('login');
+            const userProfile = ref({});
+            const logs = ref([]);
+            
+            // Состояние редактирования профиля
+            const isEditingProfile = ref(false);
+            const editProfileForm = ref({});
+
+            // Формы
+            const loginForm = ref({ email: '', password: '' });
+            const registerForm = ref({ 
+                email: '', first_name: '', last_name: '', middle_name: '',
+                password: '', password_confirm: '' 
+            });
+
+            // Токены
+            const getAccessToken = () => localStorage.getItem('access_token');
+            const getRefreshToken = () => localStorage.getItem('refresh_token');
+
+            const setTokens = (access, refresh) => {
+                localStorage.setItem('access_token', access);
+                localStorage.setItem('refresh_token', refresh);
+                isAuthenticated.value = true;
+                fetchProfile();
+            };
+
+            const clearTokens = () => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                isAuthenticated.value = false;
+                userProfile.value = {};
+            };
+
+            const log = (method, url, status, data) => {
+                const now = new Date().toLocaleTimeString();
+                logs.value.unshift({ time: now, method, url, status, data });
+            };
+
+            const getStatusClass = (status) => {
+                if (status >= 200 && status < 300) return 'text-success status-badge';
+                if (status === 401 || status === 403) return 'text-danger status-badge';
+                return 'text-warning status-badge';
+            };
+
+            // API вызовы
+            const apiRequest = async (endpoint, method = 'GET', body = null, auth = true) => {
+                const headers = { 'Content-Type': 'application/json' };
+                if (auth) {
+                    const token = getAccessToken();
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+                }
+
+                try {
+                    const options = { method, headers };
+                    if (body) options.body = JSON.stringify(body);
+
+                    const res = await fetch(`${API_URL}${endpoint}`, options);
+                    let data;
+                    try {
+                        data = await res.json();
+                    } catch (e) {
+                         // Если нет тела JSON (например 204 No Content)
+                        data = null; 
+                    }
+
+                    // Обработка истекшего токена (упрощенно)
+                    if (res.status === 401 && auth) {
+                         // Здесь можно добавить логику refresh token
+                         // Для демо просто разлогиниваем
+                         // clearTokens(); 
+                    }
+
+                    log(method, endpoint, res.status, data);
+                    return { status: res.status, data };
+                } catch (error) {
+                    log(method, endpoint, 'ERROR', { error: error.message });
+                    return null;
+                }
+            };
+
+            const login = async () => {
+                const res = await apiRequest('/auth/login/', 'POST', loginForm.value, false);
+                if (res && res.status === 200) {
+                    setTokens(res.data.access, res.data.refresh);
+                    loginForm.value = { email: '', password: '' };
+                } else if (res && res.data) {
+                    alert('Ошибка входа: ' + JSON.stringify(res.data));
+                }
+            };
+
+            const register = async () => {
+                const res = await apiRequest('/auth/register/', 'POST', registerForm.value, false);
+                if (res && res.status === 201) {
+                    alert('Регистрация успешна! Теперь войдите.');
+                    activeTab.value = 'login';
+                    registerForm.value = { email: '', first_name: '', last_name: '', middle_name: '', password: '', password_confirm: '' };
+                    log('SYSTEM', 'Регистрация', 'SUCCESS', 'Move to Login Tab');
+                } else if (res && res.data) {
+                    alert('Ошибка регистрации: ' + JSON.stringify(res.data));
+                }
+            };
+
+            const fetchProfile = async () => {
+                const res = await apiRequest('/profile/', 'GET');
+                if (res && res.status === 200) {
+                    userProfile.value = res.data;
+                } else {
+                    // Если не удалось загрузить профиль - возможно токен протух
+                    clearTokens(); 
+                }
+            };
+
+            const toggleEditProfile = () => {
+                editProfileForm.value = { 
+                    first_name: userProfile.value.first_name,
+                    last_name: userProfile.value.last_name,
+                    middle_name: userProfile.value.middle_name
+                };
+                isEditingProfile.value = true;
+            };
+
+            const saveProfile = async () => {
+                const res = await apiRequest('/profile/', 'PUT', editProfileForm.value);
+                if (res && res.status === 200) {
+                    userProfile.value = res.data;
+                    isEditingProfile.value = false;
+                    alert('Профиль обновлен!');
+                } else {
+                    alert('Ошибка обновления профиля');
+                }
+            };
+
+            const logout = async () => {
+                const refresh = getRefreshToken();
+                if (refresh) {
+                    await apiRequest('/auth/logout/', 'POST', { refresh });
+                }
+                clearTokens();
+            };
+
+            const deleteAccount = async () => {
+                if(!confirm('Вы уверены? Аккаунт будет деактивирован.')) return;
+                const res = await apiRequest('/profile/', 'DELETE');
+                if (res && (res.status === 204 || res.status === 200)) {
+                    alert('Аккаунт удален');
+                    clearTokens();
+                }
+            };
+
+            const getOrders = async () => {
+                await apiRequest('/resources/orders/', 'GET');
+            };
+
+            const createOrder = async () => {
+                await apiRequest('/resources/orders/', 'POST', { item: 'New Item' });
+            };
+
+            const getReports = async () => {
+                await apiRequest('/resources/reports/', 'GET');
+            };
+
+            onMounted(() => {
+                if (getAccessToken()) {
+                    isAuthenticated.value = true;
+                    fetchProfile();
+                }
+            });
+
+            return {
+                isAuthenticated,
+                activeTab,
+                loginForm,
+                registerForm,
+                userProfile,
+                logs,
+                isEditingProfile,
+                editProfileForm,
+                login,
+                register,
+                logout,
+                deleteAccount,
+                getOrders,
+                createOrder,
+                getReports,
+                getStatusClass,
+                toggleEditProfile,
+                saveProfile
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
