@@ -7,10 +7,12 @@ from drf_spectacular.utils import extend_schema, OpenApiExample
 
 from .serializers import (
     UserRegistrationSerializer, UserProfileSerializer, 
-    RoleSerializer, PermissionRuleSerializer
+    RoleSerializer, PermissionRuleSerializer,
+    OrderSerializer, ReportSerializer
 )
-from .models import Role, PermissionRule, Resource
+from .models import Role, PermissionRule, Resource, Order, Report
 from .permissions import CustomRBACPermission
+from . import services
 
 User = get_user_model()
 
@@ -73,26 +75,34 @@ class PermissionRuleViewSet(viewsets.ModelViewSet):
     serializer_class = PermissionRuleSerializer
     permission_classes = (IsAdminUser,)
 
-# --- Mock Business Logic ---
+# --- Бизнес-логика (Реальные модели + Сервисный слой) ---
 
-class MockOrdersView(views.APIView):
+class OrderViewSet(viewsets.ModelViewSet):
+    serializer_class = OrderSerializer
     permission_classes = (IsAuthenticated, CustomRBACPermission)
     required_resource = 'orders'
 
-    @extend_schema(responses={200: dict})
-    def get(self, request):
-        return Response([
-            {"id": 1, "item": "Laptop", "price": 1200},
-            {"id": 2, "item": "Mouse", "price": 20}
-        ])
+    def get_queryset(self):
+        return services.get_user_orders(self.request.user)
 
-    @extend_schema(request=dict, responses={201: dict})
-    def post(self, request):
-        return Response({"id": 3, "status": "created"}, status=status.HTTP_201_CREATED)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order = services.create_order(request.user, serializer.validated_data)
+        headers = self.get_success_headers(serializer.data)
+        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED, headers=headers)
 
-class MockReportsView(views.APIView):
+class ReportViewSet(viewsets.ModelViewSet):
+    serializer_class = ReportSerializer
     permission_classes = (IsAuthenticated, CustomRBACPermission)
     required_resource = 'reports'
 
-    def get(self, request):
-        return Response({"report_id": 101, "summary": "Sales up 20%"})
+    def get_queryset(self):
+        return services.get_user_reports(self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        report = services.create_report(request.user, serializer.validated_data)
+        headers = self.get_success_headers(serializer.data)
+        return Response(ReportSerializer(report).data, status=status.HTTP_201_CREATED, headers=headers)

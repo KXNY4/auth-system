@@ -4,11 +4,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=auth_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
+    env_file:
+      - .env
 
   web:
     build:
@@ -22,15 +24,8 @@ services:
       - ./app:/app
     ports:
       - "8000:8000"
-    environment:
-      - POSTGRES_DB=auth_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - DB_HOST=db
-      - DB_PORT=5432
-      - SECRET_KEY=django-insecure-dev-key
-      - DEBUG=True
-      - CORS_ALLOW_ALL_ORIGINS=True
+    env_file:
+      - .env
     depends_on:
       - db
 

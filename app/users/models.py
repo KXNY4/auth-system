@@ -13,7 +13,7 @@ class Role(models.Model):
         return self.name
 
 class Resource(models.Model):
-    name = models.CharField(max_length=50, unique=True, verbose_name="Название")  # например, "orders", "reports"
+    name = models.CharField(max_length=50, unique=True, verbose_name="Название")  # например, "orders" (заказы), "reports" (отчеты)
 
     class Meta:
         verbose_name = "Ресурс"
@@ -88,3 +88,29 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Мягкое удаление пользователя."""
         self.is_active = False
         self.save()
+
+class Order(models.Model):
+    item = models.CharField(max_length=255, verbose_name="Товар")
+    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Цена")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders', verbose_name="Владелец", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Заказ"
+        verbose_name_plural = "Заказы"
+    
+    def __str__(self):
+        return f"Order #{self.id} - {self.item}"
+
+class Report(models.Model):
+    title = models.CharField(max_length=255, verbose_name="Заголовок")
+    content = models.TextField(verbose_name="Содержание")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reports', verbose_name="Автор", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Отчет"
+        verbose_name_plural = "Отчеты"
+
+    def __str__(self):
+        return self.title
