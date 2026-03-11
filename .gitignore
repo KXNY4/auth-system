@@ -15,4 +15,5 @@ db.sqlite3
 .idea/
 .vscode/
 postgres_data/
+staticfiles/
 TZ
